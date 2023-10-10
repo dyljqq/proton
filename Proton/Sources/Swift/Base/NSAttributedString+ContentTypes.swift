@@ -65,6 +65,8 @@ public extension NSAttributedString.Key {
     /// Attribute denoting the range as a list item. This attribute enables use of `ListTextProcessor` to indent/outdent list
     /// using tab/shift-tab (macOS) as well as create a new list item on hitting enter key.
     static let listItem = NSAttributedString.Key("_listItem")
+    static let checklist = NSAttributedString.Key("_checklist")
+    static let listItemValue = NSAttributedString.Key("_listItemValue")
 
     /// When applied to a new line char alongside `listItem` attribute, skips the rendering of list marker on subsequent line.
     static let skipNextListMarker = NSAttributedString.Key("_skipNextListMarker")
@@ -79,4 +81,7 @@ public extension NSAttributedString.Key {
     /// `.lockedAttributes: [NSAttributedString.Key.backgroundStyle]`
     /// `], at: editor.selectedRange)`
     static let lockedAttributes = NSAttributedString.Key("_lockedAttributes")
+
+
+    static let asyncTextResolver = NSAttributedString.Key("_asyncTextResolver")
 }

@@ -24,11 +24,20 @@ import UIKit
 
 class GridRowDimension {
     var currentHeight: CGFloat
+    var isCollapsed: Bool
     let rowConfiguration: GridRowConfiguration
+    let collapsedHeight: CGFloat
 
-    init(rowConfiguration: GridRowConfiguration) {
+    var calculatedHeight: CGFloat {
+        guard !isCollapsed else { return collapsedHeight }
+        return currentHeight
+    }
+
+    init(rowConfiguration: GridRowConfiguration, isCollapsed: Bool = false, collapsedHeight: CGFloat) {
         self.rowConfiguration = rowConfiguration
         currentHeight = rowConfiguration.initialHeight
+        self.isCollapsed = isCollapsed
+        self.collapsedHeight = collapsedHeight
     }
 }
 
@@ -46,7 +55,7 @@ class Grid {
     weak var delegate: GridDelegate?
 
     var currentRowHeights: [CGFloat] {
-        rowHeights.map { $0.currentHeight }
+        rowHeights.map { $0.calculatedHeight }
     }
 
     var cells: [GridCell] {
@@ -65,11 +74,11 @@ class Grid {
         self.config = config
 
         for column in config.columnsConfiguration {
-            self.columnWidths.append(column.dimension)
+            self.columnWidths.append(GridColumnDimension(width: column.width, collapsedWidth: config.collapsedColumnWidth))
         }
 
         for row in config.rowsConfiguration {
-            self.rowHeights.append(GridRowDimension(rowConfiguration: row))
+            self.rowHeights.append(GridRowDimension(rowConfiguration: row, collapsedHeight: config.collapsedRowHeight))
         }
         self.cellStore = GridCellStore(cells: cells)
     }
@@ -152,7 +161,7 @@ class Grid {
         let proposedWidth = columnWidths[index].value(basedOn: totalWidth) + delta
         guard index < columnWidths.count,
               delegate?.grid(self, shouldChangeColumnWidth: proposedWidth, for: index) ?? true else { return }
-        columnWidths[index] = .fixed(columnWidths[index].value(basedOn: totalWidth) + delta)
+        columnWidths[index].width = .fixed(columnWidths[index].value(basedOn: totalWidth) + delta)
     }
 
     func changeRowHeight(index: Int, delta: CGFloat) {
@@ -235,7 +244,7 @@ class Grid {
         if sanitizedIndex < numberOfRows {
             cellStore.moveCellRowIndex(from: sanitizedIndex, by: 1)
         }
-        rowHeights.insert(GridRowDimension(rowConfiguration: config), at: sanitizedIndex)
+        rowHeights.insert(GridRowDimension(rowConfiguration: config, collapsedHeight: self.config.collapsedRowHeight), at: sanitizedIndex)
         var cells = [GridCell]()
         for c in 0..<numberOfColumns {
             let cell = GridCell(
@@ -271,7 +280,7 @@ class Grid {
         if sanitizedIndex < numberOfColumns {
             cellStore.moveCellColumnIndex(from: sanitizedIndex, by: 1)
         }
-        columnWidths.insert(config.dimension, at: sanitizedIndex)
+        columnWidths.insert(GridColumnDimension(width: config.width, collapsedWidth: self.config.collapsedColumnWidth), at: sanitizedIndex)
 
         var cells = [GridCell]()
         for r in 0..<numberOfRows {
@@ -346,6 +355,41 @@ class Grid {
             cellStore.moveCellColumnIndex(from: index + 1, by: -1)
         }
 
+    }
+
+    func collapseRow(at index: Int) {
+        rowHeights[index].isCollapsed = true
+    }
+
+    func expandRow(at index: Int) {
+        rowHeights[index].isCollapsed = false
+    }
+
+    func collapseColumn(at index: Int) {
+        columnWidths[index].isCollapsed = true
+        // Hide editor failing which resizing column ends up elongating column based on content in cell
+        cells.forEach {
+            if $0.columnSpan.contains(index) {
+                $0.hideEditor()
+            }
+        }
+    }
+
+    func expandColumn(at index: Int) {
+        columnWidths[index].isCollapsed = false
+        cells.forEach {
+            if $0.columnSpan.contains(index) {
+                $0.showEditor()
+            }
+        }
+    }
+
+    func getCollapsedRowIndices() -> [Int] {
+        return rowHeights.indices.filter { rowHeights[$0].isCollapsed }
+    }
+
+    func getCollapsedColumnIndices() -> [Int] {
+        return columnWidths.indices.filter { columnWidths[$0].isCollapsed }
     }
 }
 

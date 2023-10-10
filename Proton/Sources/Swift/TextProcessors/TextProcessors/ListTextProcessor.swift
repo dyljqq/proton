@@ -36,7 +36,7 @@ public class ListTextProcessor: TextProcessing {
 
     // Zero width space - used for laying out the list bullet/number in an empty line.
     // This is required when using tab on a blank bullet line. Without this, layout calculations are not performed.
-    static let blankLineFiller = "\u{200B}"
+    static public let blankLineFiller = "\u{200B}"
 
     /// Initializes text processor.
     public init() { }
@@ -52,6 +52,9 @@ public class ListTextProcessor: TextProcessing {
            let value = editorView.attributedText.attribute(.listItem, at: rangeToCheck, effectiveRange: nil),
            (editorView.attributedText.attribute(.paragraphStyle, at: rangeToCheck, effectiveRange: nil) as? NSParagraphStyle)?.firstLineHeadIndent ?? 0 > 0 {
             editorView.typingAttributes[.listItem] = value
+            if !((value as? String)?.isChecklist ?? false) {
+                editorView.typingAttributes[.listItemValue] = editorView.attributedText.attribute(.listItemValue, at: rangeToCheck, effectiveRange: nil)
+            }
         }
         return true
     }
@@ -94,10 +97,52 @@ public class ListTextProcessor: TextProcessing {
                   attributedText.substring(from: editedRange) == ListTextProcessor.blankLineFiller,
                   attributedText.attribute(.listItem, at: editedRange.location, effectiveRange: nil) != nil,
                   attributedText.substring(from: NSRange(location: editedRange.location - 1, length: 1)) == "\n"
-            else { return }
+            else {
+                return
+            }
             
             editor.deleteBackward()
         }
+    }
+
+    func exitList(editor: EditorView) {
+        guard editor.isEmpty == false,
+            let currentContentLineRange = editor.contentLinesInRange(editor.selectedRange).first?.range,
+              editor.attributedText.attribute(
+                  .listItem,
+                  at: max(0, currentContentLineRange.endLocation - 1),
+                  effectiveRange: nil) != nil
+        else { return }
+
+        terminateList(editor: editor, editedRange: currentContentLineRange)
+    }
+
+    private func terminateList(editor: EditorView, editedRange: NSRange) {
+        editor.typingAttributes[.listItem] = nil
+        editor.typingAttributes[.listItemValue] = nil
+        self.updateListItemIfRequired(
+            editor: editor,
+            editedRange: editedRange,
+            indentMode: .outdent,
+            attributeValue: nil
+        )
+        let rangeToReplace = NSRange(location: editedRange.location + 1, length: 1)
+        
+        editor.replaceCharacters(in: rangeToReplace, with: "")
+        if editor.selectedRange.endLocation >= rangeToReplace.endLocation {
+            editor.selectedRange = NSRange(location: editor.selectedRange.location - 1, length: 0)
+        }
+        
+        let range = NSRange(location: editor.selectedRange.location, length: 1)
+        if range.endLocation < editor.contentLength,
+           editor.attributedText.substring(from: range) == "\n" {
+            editor.removeAttribute(.listItem, at: range)
+            editor.removeAttribute(.listItemValue, at: range)
+        }
+        
+        editor.removeAttribute(.strikethroughStyle, at: editor.selectedRange)
+        editor.typingAttributes[.foregroundColor] = editor.textColor
+        editor.typingAttributes[.strikethroughStyle] = nil
     }
 
     private func handleShiftReturn(editor: EditorView, editedRange: NSRange, attrs: [NSAttributedString.Key: Any]) {
@@ -141,8 +186,7 @@ public class ListTextProcessor: TextProcessing {
         if (currentLine.text.length == 0 || currentLine.text.string == ListTextProcessor.blankLineFiller),
            attributeValue != nil {
             executeOnDidProcess = { [weak self] editor in
-                self?.updateListItemIfRequired(editor: editor, editedRange: currentLine.range, indentMode: .outdent, attributeValue: attributeValue)
-                editor.replaceCharacters(in: NSRange(location: currentLine.range.location + 1, length: 1), with: "")
+                self?.terminateList(editor: editor, editedRange: currentLine.range)
             }
         }
     }
@@ -158,7 +202,7 @@ public class ListTextProcessor: TextProcessing {
         editor.typingAttributes[.skipNextListMarker] = nil
     }
 
-    private func updateListItemIfRequired(editor: EditorView, editedRange: NSRange, indentMode: Indentation, attributeValue: Any?) {
+    func updateListItemIfRequired(editor: EditorView, editedRange: NSRange, indentMode: Indentation, attributeValue: Any?) {
         let lines = editor.contentLinesInRange(editedRange)
 
         for line in lines {
@@ -188,9 +232,11 @@ public class ListTextProcessor: TextProcessing {
             // Remove listItem attribute if indented all the way back
             if mutableStyle?.firstLineHeadIndent == 0 {
                 editor.removeAttribute(.listItem, at: line.range)
+                editor.removeAttribute(.listItemValue, at: line.range)
                 // remove list attribute from new line char in the previous line
                 if let previousLine = previousLine {
                     editor.removeAttribute(.listItem, at: NSRange(location: previousLine.range.endLocation, length: 1))
+                    editor.removeAttribute(.listItemValue, at: NSRange(location: previousLine.range.endLocation, length: 1))
                 }
             }
             indentChildLists(editor: editor, editedRange: line.range, originalParaStyle: paraStyle, indentMode: indentMode)
@@ -228,6 +274,7 @@ public class ListTextProcessor: TextProcessing {
         let updatedStyle = updatedParagraphStyle(paraStyle: paraStyle, listLineFormatting: editor.listLineFormatting, indentMode: indentMode)
         attrs[.paragraphStyle] = updatedStyle
         attrs[.listItem] = updatedStyle?.firstLineHeadIndent ?? 0 > 0.0 ? listAttributeValue : nil
+        attrs[.listItemValue] = updatedStyle?.firstLineHeadIndent ?? 0 > 0.0 ? UUID().uuidString : nil
         let marker = NSAttributedString(string: ListTextProcessor.blankLineFiller, attributes: attrs)
         editor.replaceCharacters(in: editedRange, with: marker)
         editor.selectedRange = editedRange.nextPosition
@@ -237,10 +284,10 @@ public class ListTextProcessor: TextProcessing {
         let mutableStyle = paraStyle?.mutableCopy() as? NSMutableParagraphStyle
         let indent = listLineFormatting.indentation
         if indentMode == .indent {
-            mutableStyle?.firstLineHeadIndent += indent
+            mutableStyle?.firstLineHeadIndent = indent
             mutableStyle?.headIndent = mutableStyle?.firstLineHeadIndent ?? 0
         } else {
-            mutableStyle?.firstLineHeadIndent -= indent
+            mutableStyle?.firstLineHeadIndent = 0
             mutableStyle?.headIndent = mutableStyle?.firstLineHeadIndent ?? 0
         }
         mutableStyle?.paragraphSpacingBefore = listLineFormatting.spacingBefore

@@ -59,6 +59,8 @@ class GridContentView: UIScrollView {
     weak var gridContentViewDelegate: GridContentViewDelegate?
     weak var boundsObserver: BoundsObserving?
 
+    var isFreeScrollingEnabled = false
+
     var cells: [GridCell] {
         grid.cells
     }
@@ -86,13 +88,17 @@ class GridContentView: UIScrollView {
         }
     }
 
-    init(config: GridConfiguration) {
+    init(config: GridConfiguration, cells: [GridCell]) {
         self.config = config
-        let cells = Self.generateCells(config: config)
         grid = Grid(config: config, cells: cells)
         super.init(frame: .zero)
         grid.delegate = self
         setup()
+    }
+
+    convenience init(config: GridConfiguration) {
+        let cells = Self.generateCells(config: config)
+        self.init(config: config, cells: cells)
     }
 
     required init?(coder: NSCoder) {
@@ -210,6 +216,34 @@ class GridContentView: UIScrollView {
         gridContentViewDelegate?.gridContentView(self, didAddNewColumnAt: index)
     }
 
+    func collapseRow(at index: Int) {
+        grid.collapseRow(at: index)
+        invalidateCellLayout()
+    }
+
+    func expandRow(at index: Int) {
+        grid.expandRow(at: index)
+        invalidateCellLayout()
+    }
+
+    func collapseColumn(at index: Int) {
+        grid.collapseColumn(at: index)
+        invalidateCellLayout()
+    }
+
+    func expandColumn(at index: Int) {
+        grid.expandColumn(at: index)
+        invalidateCellLayout()
+    }
+
+    func getCollapsedRowIndices() -> [Int] {
+        return grid.getCollapsedRowIndices()
+    }
+
+    func getCollapsedColumnIndices() -> [Int] {
+        return grid.getCollapsedColumnIndices()
+    }
+
     func cellAt(rowIndex: Int, columnIndex: Int) -> GridCell? {
         grid.cellAt(rowIndex: rowIndex, columnIndex: columnIndex)
     }
@@ -279,7 +313,7 @@ class GridContentView: UIScrollView {
             gridContentViewDelegate?.gridContentView(self, didLayoutCell: c)
         }
 
-        boundsObserver?.didChangeBounds(CGRect(origin: bounds.origin, size: frame.size))
+        boundsObserver?.didChangeBounds(CGRect(origin: bounds.origin, size: frame.size), oldBounds: bounds)
         invalidateIntrinsicContentSize()
     }
 
@@ -391,7 +425,7 @@ extension GridContentView: DynamicBoundsProviding {
 
 extension GridContentView: UIGestureRecognizerDelegate {
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
-        return false
+        return isFreeScrollingEnabled
     }
 }
 

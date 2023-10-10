@@ -84,7 +84,6 @@ class RichTextEditorContext: RichTextViewContext {
                 !attachment.isSelected // ... but isn't.
             {
                 attachment.isSelected = true // Select it
-                textView.selectedRange = range
                 return false // don't delete anything
             }
 
@@ -115,7 +114,7 @@ class RichTextEditorContext: RichTextViewContext {
 
     private func shouldChangeText(_ richTextView: RichTextView, range: NSRange, replacementText: String) -> Bool {
         guard let editor = richTextView.superview as? EditorView else { return true }
-
+        
         updateTypingAttributes(editor: editor, editedRange: range)
 
         for processor in richTextView.textProcessor?.sortedProcessors ?? [] {
@@ -133,12 +132,14 @@ class RichTextEditorContext: RichTextViewContext {
         else { return }
 
         // custom attributes to carry over
-        let customAttributesToApply: [NSAttributedString.Key] = [.backgroundStyle]
         let attributes = editor.attributedText.attributes(at: editedRange.location - 1, effectiveRange: nil)
+        if editor.typingAttributes[.backgroundStyle] == nil {
+            let customAttributesToApply: [NSAttributedString.Key] = [.backgroundStyle]
 
-        let filteredAttributes = attributes.filter { customAttributesToApply.contains($0.key) }
-        for attribute in filteredAttributes {
-            editor.typingAttributes[attribute.key] = attribute.value
+            let filteredAttributes = attributes.filter { customAttributesToApply.contains($0.key) }
+            for attribute in filteredAttributes {
+                editor.typingAttributes[attribute.key] = attribute.value
+            }
         }
 
         // Drop locked attributes
@@ -190,5 +191,26 @@ class RichTextEditorContext: RichTextViewContext {
             }
         }
         return fontToApply ?? textView.defaultFont
+    }
+}
+
+extension String {
+    var containsEmoji: Bool {
+        for scalar in unicodeScalars {
+            switch scalar.value {
+            case 0x1F600...0x1F64F, // Emoticons
+                 0x1F300...0x1F5FF, // Misc Symbols and Pictographs
+                 0x1F680...0x1F6FF, // Transport and Map
+                 0x2600...0x26FF,   // Misc symbols
+                 0x2700...0x27BF,   // Dingbats
+                 0xFE00...0xFE0F,   // Variation Selectors
+                 0x1F900...0x1F9FF, // Supplemental Symbols and Pictographs
+                 0x1F1E6...0x1F1FF: // Flags
+                return true
+            default:
+                continue
+            }
+        }
+        return false
     }
 }

@@ -21,7 +21,24 @@
 import Foundation
 import UIKit
 
-public enum GridColumnDimension {
+class GridColumnDimension {
+    var isCollapsed: Bool
+    var width: GridColumnWidth
+    let collapsedWidth: CGFloat
+
+    init(width: GridColumnWidth, isCollapsed: Bool = false, collapsedWidth: CGFloat) {
+        self.isCollapsed = isCollapsed
+        self.width = width
+        self.collapsedWidth = collapsedWidth
+    }
+
+    func value(basedOn total: CGFloat) -> CGFloat {
+        guard !isCollapsed else { return collapsedWidth }
+        return width.value(basedOn: total)
+    }
+}
+
+public enum GridColumnWidth {
     case fixed(CGFloat)
     case fractional(CGFloat)
 
@@ -36,11 +53,11 @@ public enum GridColumnDimension {
 }
 
 public struct GridColumnConfiguration {
-    public let dimension: GridColumnDimension
+    public let width: GridColumnWidth
     public let style: GridCellStyle
 
-    public init(dimension: GridColumnDimension, style: GridCellStyle = .init()) {
-        self.dimension = dimension
+    public init(width: GridColumnWidth, style: GridCellStyle = .init()) {
+        self.width = width
         self.style = style
     }
 }
@@ -72,14 +89,22 @@ public struct GridConfiguration {
     public let columnsConfiguration: [GridColumnConfiguration]
     public let rowsConfiguration: [GridRowConfiguration]
 
+    public let collapsedColumnWidth: CGFloat
+    public let collapsedRowHeight: CGFloat
+
     public init(columnsConfiguration: [GridColumnConfiguration],
                 rowsConfiguration: [GridRowConfiguration],
                 style: GridStyle = .default,
-                boundsLimitShadowColors: GradientColors = GradientColors(primary: .black, secondary: .white)) {
+                boundsLimitShadowColors: GradientColors = GradientColors(primary: .black, secondary: .white),
+                collapsedColumnWidth: CGFloat = 2,
+                collapsedRowHeight: CGFloat = 2
+    ) {
         self.columnsConfiguration = columnsConfiguration
         self.rowsConfiguration = rowsConfiguration
         self.style = style
         self.boundsLimitShadowColors = boundsLimitShadowColors
+        self.collapsedColumnWidth = collapsedColumnWidth
+        self.collapsedRowHeight = collapsedRowHeight
     }
 
     public var numberOfColumns: Int {

@@ -33,6 +33,17 @@ public struct ListItem {
 
     /// Attribute value of the list item.
     public let attributeValue: Any
+
+    /// Creates a `ListItem`
+    /// - Parameters:
+    ///   - text: Attributed value for text in `ListItem`
+    ///   - level: Indentation level of `ListItem`.
+    ///   - attributeValue: Attribute value to be applied to entire text range of `ListItem`
+    public init(text: NSAttributedString, level: Int, attributeValue: Any) {
+        self.text = text
+        self.level = level
+        self.attributeValue = attributeValue
+    }
 }
 
 /// Provides helper function to convert between `NSAttributedString` and `[ListItem]`
@@ -52,6 +63,8 @@ public struct ListParser {
             paraStyle.headIndent = paraStyle.firstLineHeadIndent
             let listText = NSMutableAttributedString(attributedString: item.text)
             listText.addAttribute(.listItem, value: item.attributeValue, range: listText.fullRange)
+            let listItemValue = listText.attribute(.listItemValue, at: listText.fullRange.location, effectiveRange: nil)
+            listText.addAttribute(.listItemValue, value: listItemValue, range: listText.fullRange)
             listText.addAttribute(.paragraphStyle, value: paraStyle, range: listText.fullRange)
             let newLineRanges = listText.rangesOf(characterSet: .newlines)
             for newLineRange in newLineRanges {
